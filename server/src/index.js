@@ -5,117 +5,182 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// CONFIGURACIÓN
-const TARIFA = 15;
-const MIN_MIN = 30;
-const FRACCION = 5;
+/*
+  ============================
+  CONFIGURACIÓN GENERAL
+  ============================
+*/
+const TARIFA_POR_HORA = 15;
+const MIN_MINUTOS = 30;
+const FRACCION_MINUTOS = 5;
 
+/*
+  ============================
+  ESTADO EN MEMORIA
+  (fuente de verdad del sistema)
+  ============================
+*/
 let mesas = Array.from({ length: 10 }, (_, i) => ({
   id: `mesa_${i + 1}`,
   name: `Mesa ${i + 1}`,
-  status: "libre",
-  session: null,
+  status: "libre",       // "libre" | "ocupada"
+  session: null          // sesión activa o null
 }));
-``
 
-const ahora = () => Math.floor(Date.now() / 1000);
+const nowTs = () => Date.now();
 
-// CÁLCULOS
-const tiempoReal = (s) =>
-  s.acumulado + (s.estado === "EN_USO" ? ahora() - s.inicio : 0);
+/*
+  ============================
+  CÁLCULOS DE TIEMPO / COBRO
+  ============================
+*/
+function computeCharge({ start, end, pausedMs = 0 }) {
+  const effectiveMs = Math.max(0, end - start - pausedMs);
+  const minutes = Math.max(0, Math.ceil(effectiveMs / 60000));
 
-const tiempoFacturable = (seg) => {
-  const min = Math.ceil(seg / 60);
-  if (min <= MIN_MIN) return MIN_MIN * 60;
-  const r = min % FRACCION;
-  return (r ? min + (FRACCION - r) : min) * 60;
-};
+  const roundedMinutes =
+    minutes <= MIN_MINUTOS
+      ? MIN_MINUTOS
+      : Math.ceil(minutes / FRACCION_MINUTOS) * FRACCION_MINUTOS;
 
-const monto = (seg) => +((seg / 3600) * TARIFA).toFixed(2);
+  const amount = (roundedMinutes / 60) * TARIFA_POR_HORA;
 
-// API
-app.get("/mesas", (_, res) => {
-  res.json(
-    mesas.map(m => {
-      if (!m.sesion) return m;
-      const real = tiempoReal(m.sesion);
-      const fact = tiempoFacturable(real);
-      const productos = m.sesion.productos.reduce((s,p)=>s+p.precio,0);
-      const tiempoBs = monto(fact);
-      return {
-        ...m,
-        sesion: {
-          ...m.sesion,
-          tiempoReal: real,
-          tiempoFacturable: fact,
-          importeTiempo: tiempoBs,
-          subtotalProductos: productos,
-          total: tiempoBs + productos
-        }
-      };
-    })
-  );
-});
+  return {
+    minutes,
+    rounded: roundedMinutes,
+    amount: Number(amount.toFixed(2))
+  };
+}
 
-// INICIAR SESIÓN
-app.post("/mesas/:id/iniciar", (req,res)=>{
-  const m = mesas.find(x=>x.id==req.params.id);
-  if (!m) return res.sendStatus(404);
-  if (!m.sesion) {
-    m.sesion = {
-      estado: "EN_USO",
-      cliente: "",
-      inicio: ahora(),
-      acumulado: 0,
-      productos: []
-    };
-  }
-  res.json(m);
-});
+/*
+  ============================
+  API
+  ============================
+*/
 
-// PAUSAR
-app.post("/mesas/:id/pausar", (req,res)=>{
-  const m = mesas.find(x=>x.id==req.params.id);
-  if (!m?.sesion) return res.sendStatus(404);
-  const s = m.sesion;
-  if (s.estado === "EN_USO") {
-    s.acumulado += ahora() - s.inicio;
-    s.inicio = null;
-    s.estado = "PAUSADA";
-  }
-  res.json(m);
-});
-
-// PRODUCTO
-app.post("/mesas/:id/producto", (req,res)=>{
-  const m = mesas.find(x=>x.id==req.params.id);
-  if (!m?.sesion) return res.sendStatus(404);
-  m.sesion.productos.push({ nombre:req.body.nombre, precio:req.body.precio });
-  res.json(m);
-});
-
-// CERRAR
-app.post("/mesas/:id/cerrar", (req,res)=>{
-  const m = mesas.find(x=>x.id==req.params.id);
-  if (!m) return res.sendStatus(404);
-  m.sesion = null;
-  res.json(m);
-});
-
-// + MESA
-app.post("/mesas", (_,res)=>{
-  const id = mesas.length + 1;
-  mesas.push({ id, nombre:`Mesa ${id}`, sesion:null });
+// Obtener todas las mesas
+app.get("/mesas", (req, res) => {
   res.json(mesas);
 });
 
-// - MESA
-app.delete("/mesas", (_,res)=>{
-  const last = mesas[mesas.length-1];
-  if (last?.sesion) return res.status(400).json({error:"Mesa ocupada"});
+// Iniciar mesa
+app.post("/mesas/:id/iniciar", (req, res) => {
+  const mesa = mesas.find(m => m.id === req.params.id);
+  if (!mesa) return res.sendStatus(404);
+
+  if (mesa.status === "libre") {
+    mesa.status = "ocupada";
+    mesa.session = {
+      id: `ses_${Math.random().toString(36).slice(2, 9)}`,
+      start: nowTs(),
+      customerName: "",
+      items: [],
+      pausedMs: 0,
+      isPaused: false,
+      pausedAt: null
+    };
+  }
+
+  res.json(mesa);
+});
+
+// Pausar / Reanudar mesa
+app.post("/mesas/:id/pausar", (req, res) => {
+  const mesa = mesas.find(m => m.id === req.params.id);
+  if (!mesa || !mesa.session) return res.sendStatus(404);
+
+  const s = mesa.session;
+
+  if (!s.isPaused) {
+    s.isPaused = true;
+    s.pausedAt = nowTs();
+  } else {
+    s.isPaused = false;
+    s.pausedMs += nowTs() - (s.pausedAt || nowTs());
+    s.pausedAt = null;
+  }
+
+  res.json(mesa);
+});
+
+// Agregar producto a la mesa
+app.post("/mesas/:id/producto", (req, res) => {
+  const mesa = mesas.find(m => m.id === req.params.id);
+  if (!mesa || !mesa.session) return res.sendStatus(404);
+
+  const { nombre, precio } = req.body;
+  if (!nombre || !precio) return res.sendStatus(400);
+
+  mesa.session.items.push({
+    id: `it_${Math.random().toString(36).slice(2, 9)}`,
+    name: nombre,
+    price: Number(precio),
+    qty: 1
+  });
+
+  res.json(mesa);
+});
+
+// Cerrar mesa
+app.post("/mesas/:id/cerrar", (req, res) => {
+  const mesa = mesas.find(m => m.id === req.params.id);
+  if (!mesa || !mesa.session) return res.sendStatus(404);
+
+  const end = nowTs();
+  const charge = computeCharge({
+    start: mesa.session.start,
+    end,
+    pausedMs: mesa.session.pausedMs
+  });
+
+  const productos = mesa.session.items.reduce(
+    (s, it) => s + it.price * it.qty,
+    0
+  );
+
+  const cierre = {
+    mesa: mesa.name,
+    inicio: mesa.session.start,
+    fin: end,
+    tiempo: charge,
+    productos,
+    total: Number((productos + charge.amount).toFixed(2))
+  };
+
+  mesa.status = "libre";
+  mesa.session = null;
+
+  res.json(cierre);
+});
+
+// + Mesa
+app.post("/mesas", (req, res) => {
+  const id = `mesa_${mesas.length + 1}`;
+  mesas.push({
+    id,
+    name: `Mesa ${mesas.length + 1}`,
+    status: "libre",
+    session: null
+  });
+  res.json(mesas);
+});
+
+// - Mesa (solo si la última está libre)
+app.delete("/mesas", (req, res) => {
+  const last = mesas[mesas.length - 1];
+  if (!last || last.status !== "libre") {
+    return res.status(400).json({ error: "Solo se puede eliminar una mesa libre" });
+  }
   mesas.pop();
   res.json(mesas);
 });
 
-const PORT = process.env.PORT;
-app.listen(PORT, ()=>console.log("Backend listo"));
+/*
+  ============================
+  START SERVER
+  ============================
+*/
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("✅ Billar backend activo en puerto", PORT);
+});
