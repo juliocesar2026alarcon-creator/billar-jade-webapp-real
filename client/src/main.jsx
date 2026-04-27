@@ -1989,3 +1989,8 @@ function exportClosureCSV(c) {
   URL.revokeObjectURL(url);
 }
 // ==== FIN BLOQUE 10/10 ====
+import ReactDOM from "react-dom/client";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <App />
+);
