@@ -3,14 +3,11 @@ import cors from "cors";
 
 const app = express();
 
-// ✅ HABILITAR CORS
-app.use(cors({
-  origin: "https://billar-jade-frontend.onrender.com"
-}));
+// ✅ CORS ABIERTO (producción simple)
+app.use(cors());
 
 app.use(express.json());
 
-// Ruta de prueba
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
@@ -19,7 +16,6 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT;
-
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
 });
