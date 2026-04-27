@@ -3,6 +3,13 @@ import ReactDOM from "react-dom/client";
 
 const API = import.meta.env.VITE_API_URL;
 
+// Formatea segundos a mm:ss
+const fmt = (s) => {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m.toString().padStart(2, "0")}:${r.toString().padStart(2, "0")}`;
+};
+
 function App() {
   const [mesas, setMesas] = useState([]);
 
@@ -14,6 +21,8 @@ function App() {
 
   useEffect(() => {
     cargarMesas();
+    const t = setInterval(cargarMesas, 1000); // refresco cada 1s
+    return () => clearInterval(t);
   }, []);
 
   const accionMesa = (id, accion) => {
@@ -33,7 +42,9 @@ function App() {
             padding: "10px"
           }}
         >
-          <strong>{mesa.nombre}</strong> — Estado: <b>{mesa.estado}</b>
+          <strong>{mesa.nombre}</strong>{" "}
+          — Estado: <b>{mesa.estado}</b>
+          <div>⏱ Tiempo: <b>{fmt(mesa.tiempo)}</b></div>
           <div style={{ marginTop: "5px" }}>
             <button onClick={() => accionMesa(mesa.id, "iniciar")}>Iniciar</button>{" "}
             <button onClick={() => accionMesa(mesa.id, "pausar")}>Pausar</button>{" "}
@@ -46,4 +57,3 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-``
