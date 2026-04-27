@@ -142,7 +142,7 @@ export default function App() {
   );
   const [config, setConfig] = useState(defaultConfig);
   const [byBranch, setByBranch] = useState(() => {
-    const init = {};
+      const init = {};
     for (const b of defaultBranches) {
       init[b.id] = {
         tables: makeDefaultTables(defaultConfig.tablesPerBranch),
@@ -154,6 +154,24 @@ export default function App() {
     }
     return init;
   });
+    // === Mesas que vienen del BACKEND (fuente de verdad) ===
+const [apiMesas, setApiMesas] = useState([]);
+  // ==== PASO 2: cargar mesas desde el backend ====
+useEffect(() => {
+  const loadMesas = async () => {
+    try {
+      const res = await fetch(import.meta.env.VITE_API_URL + "/mesas");
+      const data = await res.json();
+      setApiMesas(data);
+    } catch (err) {
+      console.error("Error cargando mesas desde backend", err);
+    }
+  };
+
+  loadMesas();
+  const t = setInterval(loadMesas, 1000);
+  return () => clearInterval(t);
+}, []);
 
   // --- Carga inicial desde localStorage
 useEffect(() => {
