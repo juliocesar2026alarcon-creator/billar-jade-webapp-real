@@ -157,28 +157,33 @@ export default function App() {
 
   // --- Carga inicial desde localStorage
 useEffect(() => {
-  const load = () => {
-    fetch(API + "/mesas")
-      .then(r => r.json())
-      .then(data =>
-        setByBranch(prev => {
-          const copy = deepClone(prev);
-          const branch = copy[selectedBranchId] ||= {
-            tables: [],
-            inventory: [],
-            kardex: [],
-            cash: { currentShift: null, shifts: [], closures: [] },
-            sessions: []
-          };
-          branch.tables = data;
-          return copy;
-        });
-      );
+  const loadMesas = async () => {
+    try {
+      const res = await fetch(API + "/mesas");
+      const data = await res.json();
+
+      setByBranch(prev => {
+        const copy = deepClone(prev);
+
+        copy[selectedBranchId] ??= {
+          tables: [],
+          inventory: [...defaultInventory],
+          kardex: [],
+          cash: { currentShift: null, shifts: [], closures: [] },
+          sessions: []
+        };
+
+        copy[selectedBranchId].tables = data;
+        return copy;
+      });
+    } catch (err) {
+      console.error("Error cargando mesas", err);
+    }
   };
 
-  load();
-  const t = setInterval(load, 1000);
-  return () => clearInterval(t);
+  loadMesas();
+  const timer = setInterval(loadMesas, 1000);
+  return () => clearInterval(timer);
 }, [selectedBranchId]);
  
   // --- Persistencia continua
