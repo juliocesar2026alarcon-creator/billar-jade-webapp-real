@@ -1,6 +1,8 @@
 // ==== BLOQUE 1/10 — IMPORTS & HELPERS (NO TOCAR ENCABEZADO) ====
 import React, { useEffect, useMemo, useState } from "react";
 import { deepClone } from "./safeClone.js";
+const API = import.meta.env.VITE_API_URL;
+
 
 /** Formateos básicos */
 const bs = (n) => `Bs ${Number(n || 0).toFixed(2)}`;
@@ -155,21 +157,24 @@ export default function App() {
   });
 
   // --- Carga inicial desde localStorage
-  useEffect(() => {
-    const stored = loadState();
-    if (stored && typeof stored === "object") {
-      try {
-        if (stored.branches) setBranches(stored.branches);
-        if (stored.selectedBranchId) setSelectedBranchId(stored.selectedBranchId);
-        if (stored.config) setConfig(stored.config);
-        if (stored.byBranch) setByBranch(stored.byBranch);
-      } catch (_) {
-        console.warn("Estado previo inválido, se ignora.");
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+ useEffect(() => {
+  const load = () => {
+    fetch(API + "/mesas")
+      .then(r => r.json())
+      .then(data => {
+        setByBranch(prev => {
+          const copy = deepClone(prev);
+          const branch = copy[selectedBranchId];
+          if (branch) branch.tables = data;
+          return copy;
+        });
+      });
+  };
 
+  load();
+  const t = setInterval(load, 1000);
+  return () => clearInterval(t);
+}, []);
   // --- Persistencia continua
   useEffect(() => {
     saveState({ authUser, branches, selectedBranchId, config, byBranch });
@@ -177,15 +182,14 @@ export default function App() {
 
   // --- Derivados y utilidades
   const selectedBranch = branches.find((b) => b.id === selectedBranchId) || branches[0] || { id: "jade", name: "BILLAR JADE" };
-  const branchState =
-    byBranch[selectedBranchId] || {
-      tables: [],
-      inventory: [...defaultInventory],
-      kardex: [],
-      cash: { currentShift: null, shifts: [], closures: [] },
-      sessions: [],
-    };
-
+ 
+const [branchState, setBranchState] = useState({
+  tables: [],
+  inventory: [],
+  kardex: [],
+  cash: { currentShift: null, shifts: [], closures: [] },
+  sessions: [],
+});
   // Reloj global
   const [tick, setTick] = useState(nowTs());
   useEffect(() => {
