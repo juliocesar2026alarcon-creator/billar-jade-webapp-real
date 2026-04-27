@@ -160,20 +160,26 @@ useEffect(() => {
   const load = () => {
     fetch(API + "/mesas")
       .then(r => r.json())
-      .then(data => {
+      .then(data =>
         setByBranch(prev => {
           const copy = deepClone(prev);
-          const branch = copy[selectedBranchId];
-          if (branch) branch.tables = data;
+          const branch = copy[selectedBranchId] ||= {
+            tables: [],
+            inventory: [],
+            kardex: [],
+            cash: { currentShift: null, shifts: [], closures: [] },
+            sessions: []
+          };
+          branch.tables = data;
           return copy;
         });
-      });
+      );
   };
 
   load();
   const t = setInterval(load, 1000);
   return () => clearInterval(t);
-}, []);
+}, [selectedBranchId]);
  
   // --- Persistencia continua
   useEffect(() => {
