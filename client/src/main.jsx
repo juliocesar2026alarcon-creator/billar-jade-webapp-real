@@ -908,42 +908,30 @@ return (
 
           {/* Grilla de mesas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {(branchState.tables || []).map((t) => (
-              <MesaCard
-                key={t.id}
-                table={t}
-                config={config}
-                onStart={() => startTable(t.id)}
-                onStop={(imprimir) => stopTable(t.id, { imprimir })}
-                onRename={(name) =>
-                  updateByBranch((prev) => {
-                    const copy = deepClone(prev);
-                    const tab = (copy[selectedBranchId] ||= deepClone(branchState)).tables.find(
-                      (x) => x.id === t.id
-                    );
-                    if (tab) tab.name = name;
-                    return copy;
-                  })
-                }
-                inventory={branchState.inventory}
-                onAddItem={(itemId) => addItemToTable(t.id, itemId)}
-                onRemoveItem={(itemId) => removeItemFromTable(t.id, itemId)}
-                onCustomerChange={(name) =>
-                  updateByBranch((prev) => {
-                    const copy = deepClone(prev);
-                    const tab = (copy[selectedBranchId] ||= deepClone(branchState)).tables.find(
-                      (x) => x.id === t.id
-                    );
-                    if (tab?.session) tab.session.customerName = name;
-                    return copy;
-                  })
-                }
-                onPauseResume={() => pauseResumeTable(t.id)}
-                onMove={() => moveSessionToTable(t.id)}
-                onItemDiscount={(itemId) => applyItemDiscount(t.id, itemId)}
-                onMesaDiscount={() => applyMesaDiscount(t.id)}
-              />
-            ))}
+            {(apiMesas || []).map((t) => (
+  <MesaCard
+    key={t.id}
+    table={t}
+    config={config}
+    onStart={() =>
+      fetch(import.meta.env.VITE_API_URL + `/mesas/${t.id}/iniciar`, { method: "POST" })
+    }
+    onStop={(imprimir) =>
+      fetch(import.meta.env.VITE_API_URL + `/mesas/${t.id}/cerrar`, { method: "POST" })
+    }
+    onPauseResume={() =>
+      fetch(import.meta.env.VITE_API_URL + `/mesas/${t.id}/pausar`, { method: "POST" })
+    }
+    inventory={branchState.inventory}
+    onAddItem={(item) =>
+      fetch(import.meta.env.VITE_API_URL + `/mesas/${t.id}/producto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: item.name, precio: item.price })
+      })
+    }
+  />
+))}
           </div>
         </section>
 
