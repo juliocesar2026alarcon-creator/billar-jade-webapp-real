@@ -1,25 +1,13 @@
-import express from "express";
-import cors from "cors";
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Billar Jade</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
 
-const app = express();
-
-// ✅ HABILITAR CORS
-app.use(cors({
-  origin: "https://billar-jade-frontend.onrender.com"
-}));
-
-app.use(express.json());
-
-// Ruta de prueba
-app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    message: "Backend Billar Jade funcionando 🚀"
-  });
-});
-
-const PORT = process.env.PORT;
-
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en el puerto ${PORT}`);
-});
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
