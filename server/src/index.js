@@ -6,113 +6,117 @@ app.use(cors());
 app.use(express.json());
 
 // ===============================
-// CONFIGURACIÓN DE FACTURACIÓN
+// CONFIGURACIÓN
 // ===============================
-const TARIFA_POR_HORA = 15;        // Bs
-const MINIMO_MINUTOS = 30;         // 30 min
-const FRACCION_MINUTOS = 5;        // 5 min
+const TARIFA_POR_HORA = 15;
+const MIN_MIN = 30;
+const FRACCION = 5;
 
+// ===============================
+// MESAS + SESIÓN
+// ===============================
 let mesas = [
-  { id: 1, nombre: "Mesa 1", estado: "LIBRE", inicio: null, acumulado: 0 },
-  { id: 2, nombre: "Mesa 2", estado: "LIBRE", inicio: null, acumulado: 0 },
-  { id: 3, nombre: "Mesa 3", estado: "LIBRE", inicio: null, acumulado: 0 }
+  { id: 1, nombre: "Mesa 1", sesion: null },
+  { id: 2, nombre: "Mesa 2", sesion: null },
+  { id: 3, nombre: "Mesa 3", sesion: null },
 ];
 
 const ahora = () => Math.floor(Date.now() / 1000);
 
 // ===============================
-// CÁLCULOS
+// UTILIDADES
 // ===============================
-function segundosReales(m) {
-  let s = m.acumulado;
-  if (m.estado === "EN_USO" && m.inicio) {
-    s += ahora() - m.inicio;
-  }
-  return s;
+function calcTiempoReal(s) {
+  let t = s.acumulado;
+  if (s.estado === "EN_USO") t += ahora() - s.inicio;
+  return t;
 }
 
-function segundosAFacturar(seg) {
-  const minutos = Math.ceil(seg / 60);
-
-  if (minutos <= MINIMO_MINUTOS) {
-    return MINIMO_MINUTOS * 60;
-  }
-
-  const resto = minutos % FRACCION_MINUTOS;
-  const redondeado =
-    resto === 0 ? minutos : minutos + (FRACCION_MINUTOS - resto);
-
-  return redondeado * 60;
+function calcFacturable(seg) {
+  const min = Math.ceil(seg / 60);
+  if (min <= MIN_MIN) return MIN_MIN * 60;
+  const r = min % FRACCION;
+  return (r === 0 ? min : min + (FRACCION - r)) * 60;
 }
 
-function calcularMonto(segFacturable) {
-  return +((segFacturable / 3600) * TARIFA_POR_HORA).toFixed(2);
+function montoTiempo(seg) {
+  return +((seg / 3600) * TARIFA_POR_HORA).toFixed(2);
 }
 
 // ===============================
-// ENDPOINTS
+// API
 // ===============================
-app.get("/mesas", (req, res) => {
-  res.json(
-    mesas.map(m => {
-      const real = segundosReales(m);
-      const facturable = segundosAFacturar(real);
-      return {
-        ...m,
+app.get("/mesas", (_, res) => {
+  res.json(mesas.map(m => {
+    if (!m.sesion) return m;
+
+    const real = calcTiempoReal(m.sesion);
+    const fact = calcFacturable(real);
+
+    return {
+      ...m,
+      sesion: {
+        ...m.sesion,
         tiempoReal: real,
-        tiempoFacturable: facturable,
-        monto: calcularMonto(facturable)
-      };
-    })
-  );
+        tiempoFacturable: fact,
+        importeTiempo: montoTiempo(fact),
+        subtotalProductos: m.sesion.productos.reduce((s,p)=>s+p.precio,0),
+        total:
+          montoTiempo(fact) +
+          m.sesion.productos.reduce((s,p)=>s+p.precio,0)
+      }
+    };
+  }));
 });
 
-app.post("/mesas/:id/iniciar", (req, res) => {
-  const m = mesas.find(x => x.id == req.params.id);
+// Iniciar sesión
+app.post("/mesas/:id/iniciar", (req,res) => {
+  const m = mesas.find(x=>x.id==req.params.id);
   if (!m) return res.sendStatus(404);
-  if (m.estado !== "EN_USO") {
-    m.estado = "EN_USO";
-    m.inicio = ahora();
+
+  m.sesion = {
+    estado: "EN_USO",
+    cliente: "",
+    inicio: ahora(),
+    acumulado: 0,
+    productos: []
+  };
+  res.json(m);
+});
+
+// Pausar
+app.post("/mesas/:id/pausar", (req,res)=>{
+  const m = mesas.find(x=>x.id==req.params.id);
+  if (!m?.sesion) return res.sendStatus(404);
+
+  const s = m.sesion;
+  if (s.estado === "EN_USO") {
+    s.acumulado += ahora() - s.inicio;
+    s.inicio = null;
+    s.estado = "PAUSADA";
   }
   res.json(m);
 });
 
-app.post("/mesas/:id/pausar", (req, res) => {
-  const m = mesas.find(x => x.id == req.params.id);
-  if (!m) return res.sendStatus(404);
-  if (m.estado === "EN_USO") {
-    m.acumulado += ahora() - m.inicio;
-    m.inicio = null;
-    m.estado = "PAUSADA";
-  }
+// Agregar producto
+app.post("/mesas/:id/producto", (req,res)=>{
+  const m = mesas.find(x=>x.id==req.params.id);
+  if (!m?.sesion) return res.sendStatus(404);
+
+  m.sesion.productos.push({
+    nombre: req.body.nombre,
+    precio: req.body.precio
+  });
   res.json(m);
 });
 
-app.post("/mesas/:id/cerrar", (req, res) => {
-  const m = mesas.find(x => x.id == req.params.id);
+// Cerrar sesión
+app.post("/mesas/:id/cerrar", (req,res)=>{
+  const m = mesas.find(x=>x.id==req.params.id);
   if (!m) return res.sendStatus(404);
-  m.estado = "LIBRE";
-  m.inicio = null;
-  m.acumulado = 0;
+  m.sesion = null;
   res.json(m);
-});
-
-// + / - Mesas (como ya tenías)
-app.post("/mesas", (req, res) => {
-  const id = mesas.length ? mesas[mesas.length - 1].id + 1 : 1;
-  mesas.push({ id, nombre: `Mesa ${id}`, estado: "LIBRE", inicio: null, acumulado: 0 });
-  res.json(mesas);
-});
-
-app.delete("/mesas", (req, res) => {
-  const last = mesas[mesas.length - 1];
-  if (!last || last.estado !== "LIBRE") {
-    return res.status(400).json({ error: "Solo se puede eliminar una mesa LIBRE" });
-  }
-  mesas.pop();
-  res.json(mesas);
 });
 
 const PORT = process.env.PORT;
-app.listen(PORT, () => console.log("Backend listo"));
-``
+app.listen(PORT, ()=>console.log("Backend listo"));
