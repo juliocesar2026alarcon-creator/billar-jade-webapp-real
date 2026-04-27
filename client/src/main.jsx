@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { deepClone } from "./safeClone.js";
 const API = import.meta.env.VITE_API_URL;
 
-
 /** Formateos básicos */
 const bs = (n) => `Bs ${Number(n || 0).toFixed(2)}`;
 const to2 = (n) => Number(n || 0).toFixed(2);
@@ -157,7 +156,7 @@ export default function App() {
   });
 
   // --- Carga inicial desde localStorage
- useEffect(() => {
+useEffect(() => {
   const load = () => {
     fetch(API + "/mesas")
       .then(r => r.json())
@@ -175,6 +174,7 @@ export default function App() {
   const t = setInterval(load, 1000);
   return () => clearInterval(t);
 }, []);
+ 
   // --- Persistencia continua
   useEffect(() => {
     saveState({ authUser, branches, selectedBranchId, config, byBranch });
@@ -182,14 +182,14 @@ export default function App() {
 
   // --- Derivados y utilidades
   const selectedBranch = branches.find((b) => b.id === selectedBranchId) || branches[0] || { id: "jade", name: "BILLAR JADE" };
- 
-const [branchState, setBranchState] = useState({
+ const [branchState, setBranchState] = useState({
   tables: [],
   inventory: [],
   kardex: [],
   cash: { currentShift: null, shifts: [], closures: [] },
   sessions: [],
 });
+
   // Reloj global
   const [tick, setTick] = useState(nowTs());
   useEffect(() => {
