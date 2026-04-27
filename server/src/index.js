@@ -1,11 +1,16 @@
 import express from "express";
+import cors from "cors";
 
 const app = express();
 
-// Middleware básico
+// ✅ HABILITAR CORS
+app.use(cors({
+  origin: "https://billar-jade-frontend.onrender.com"
+}));
+
 app.use(express.json());
 
-// Ruta base de prueba
+// Ruta de prueba
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
@@ -13,13 +18,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Render asigna el puerto por variable de entorno
 const PORT = process.env.PORT;
-
-if (!PORT) {
-  console.error("ERROR: PORT no definido por Render");
-  process.exit(1);
-}
 
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
