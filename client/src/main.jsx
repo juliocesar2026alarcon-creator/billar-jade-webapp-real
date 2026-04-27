@@ -1,41 +1,49 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 
+const API = import.meta.env.VITE_API_URL;
+
 function App() {
-  const [status, setStatus] = useState("Cargando...");
-  const [error, setError] = useState("");
+  const [mesas, setMesas] = useState([]);
+
+  const cargarMesas = () => {
+    fetch(`${API}/mesas`)
+      .then(res => res.json())
+      .then(data => setMesas(data));
+  };
 
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL;
-
-    fetch(apiUrl + "/")
-      .then((res) => {
-        if (!res.ok) throw new Error("Error HTTP " + res.status);
-        return res.json();
-      })
-      .then((data) => {
-        setStatus(data.message || "Respuesta recibida");
-      })
-      .catch((err) => {
-        setError("No se pudo conectar al backend");
-        console.error(err);
-      });
+    cargarMesas();
   }, []);
 
+  const accionMesa = (id, accion) => {
+    fetch(`${API}/mesas/${id}/${accion}`, { method: "POST" })
+      .then(() => cargarMesas());
+  };
+
   return (
-    <div style={{ padding: "40px", fontFamily: "Arial" }}>
-      <h1>🎱 Billar Jade</h1>
-      {error ? (
-        <p style={{ color: "red" }}>{error}</p>
-      ) : (
-        <p>{status}</p>
-      )}
+    <div style={{ padding: "20px", fontFamily: "Arial" }}>
+      <h1>🎱 Billar Jade — Mesas</h1>
+
+      {mesas.map(mesa => (
+        <div key={mesa.id}
+          style={{
+            border: "1px solid #ccc",
+            marginBottom: "10px",
+            padding: "10px"
+          }}
+        >
+          <strong>{mesa.nombre}</strong> — Estado: <b>{mesa.estado}</b>
+          <div style={{ marginTop: "5px" }}>
+            <button onClick={() => accionMesa(mesa.id, "iniciar")}>Iniciar</button>{" "}
+            <button onClick={() => accionMesa(mesa.id, "pausar")}>Pausar</button>{" "}
+            <button onClick={() => accionMesa(mesa.id, "cerrar")}>Cerrar</button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+``
