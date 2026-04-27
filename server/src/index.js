@@ -10,11 +10,13 @@ const TARIFA = 15;
 const MIN_MIN = 30;
 const FRACCION = 5;
 
-let mesas = [
-  { id: 1, nombre: "Mesa 1", sesion: null },
-  { id: 2, nombre: "Mesa 2", sesion: null },
-  { id: 3, nombre: "Mesa 3", sesion: null },
-];
+let mesas = Array.from({ length: 10 }, (_, i) => ({
+  id: `mesa_${i + 1}`,
+  name: `Mesa ${i + 1}`,
+  status: "libre",
+  session: null,
+}));
+``
 
 const ahora = () => Math.floor(Date.now() / 1000);
 
